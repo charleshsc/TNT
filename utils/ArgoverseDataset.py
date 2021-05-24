@@ -39,6 +39,8 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
         self.map_feature = dict(PIT=[], MIA=[])
         self.city_name, self.center_xy, self.rotate_matrix = dict(), dict(), dict()
 
+        self.city_lane_centerlines_dict = self.am.build_centerline_index()
+
     def __len__(self):
         return len(self.afl)
 
@@ -191,3 +193,50 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
         for city_name in ['PIT', 'MIA']:
             tmp_map = np.vstack(vector_map[city_name]).reshape(-1, 4)
             np.save(save_path+city_name+"_vectormap", tmp_map)
+
+    def generate_target_candidates(self, N, agent_obs_traj, city):
+        ## 相邻两个点差距较大，普遍有4以上
+        candidate_centerlines = self.am.get_candidate_centerlines_for_traj(agent_obs_traj, city, viz=False)
+        for idx in range(len(candidate_centerlines)):
+            candidate_centerlines[idx] = np.array(candidate_centerlines[idx])
+
+        res = torch.from_numpy(np.concatenate(candidate_centerlines)).float()
+        assert len(res.size()) == 2 and res.size()[1] == 2
+        if res.size()[0] < N:
+            supplement = self.supplement_candidate_target(city, N-res.size()[0])
+            res = torch.cat([res,supplement],dim=0)
+            return res
+        elif res.size()[0] > N:
+            sample_idx = np.random.choice(np.array(range(res.size()[0])), N, replace=False)
+            return res[sample_idx]
+        else:
+            return res
+
+    def generate_all_centerlines_point(self, city):
+        ## 相邻两个点差距较小，一般只有1以内，以0.5可能会好一点
+        centerlines = None
+        for id in self.city_lane_centerlines_dict[city]:
+            cl = self.city_lane_centerlines_dict[city][id].centerline
+            cl = np.array(cl)
+            if centerlines is None:
+                centerlines = cl
+            else:
+                centerlines = np.concatenate([centerlines, cl])
+        return torch.from_numpy(centerlines).float()
+
+    def supplement_candidate_target(self, city, N):
+        centerlines = self.generate_all_centerlines_point(city)
+        assert len(centerlines.size()) == 2 and centerlines.size()[1] == 2
+        sample_idx = np.random.choice(np.array(range(centerlines.size()[0])), N, replace=False)
+        return centerlines[sample_idx]
+
+    def generate_centerlines_uniform(self, city, N):
+        ids = []
+        for id in self.city_lane_centerlines_dict[city]:
+            ids.append(id)
+        sample_idx = np.random.choice(ids, N, replace=False)
+        centerlines = []
+        for id in sample_idx:
+            cl = self.city_lane_centerlines_dict[city][id].centerline
+            centerlines.append(cl[len(cl) // 2])
+        return torch.tensor(centerlines).float()

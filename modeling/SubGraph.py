@@ -2,10 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F  # useful stateless functions
 import numpy as np
-# import matplotlib.animation as animation
-import matplotlib.pyplot as plt
-import warnings
-warnings.filterwarnings('ignore')
 
 class subgraph_layer(nn.Module):
     def __init__(self, input_channels=128, hidden_channels=64):

@@ -231,6 +231,7 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
         return centerlines[sample_idx]
 
     def generate_centerlines_uniform(self, city, N):
+        ## 从整个HD地图上个随机选取N个centerline point
         ids = []
         for id in self.city_lane_centerlines_dict[city]:
             ids.append(id)

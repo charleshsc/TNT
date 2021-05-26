@@ -51,7 +51,7 @@ class Target_predictor(nn.Module):
         '''
         :param target_point: target coordinates (N,2)
         :param x: scene context feature (N, 64)
-        :return: \pi: (M, ), v_x: (M,2)
+        :return: \pi: (M, ), v_x: (M,2), sort_idx (M, )
         '''
         out_pi, v_x = self(target_point,x)
         out_pi = torch.exp(out_pi)
@@ -74,7 +74,6 @@ class Target_predictor(nn.Module):
         assert target_class is not None
         loss1 = self.L_cls(out_pi, target_class)
         target_v_xy = v_x[target_class]
-        delta_xy = torch.tensor(delta_xy).float()
         assert target_v_xy.size() == delta_xy.size()
         loss2 = self.L_offset(target_v_xy, delta_xy)
         return loss1 + loss2

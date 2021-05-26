@@ -28,12 +28,12 @@ class Motion_Estimator(nn.Module):
 
     def forward(self, target_point, x):
         '''
-        :param target_point: (2, )
-        :param x: (64, )
-        :return: (T, 2)
+        :param target_point: (num, 2)
+        :param x: (num, 64)
+        :return: (num, T, 2)
         '''
-        input_x = torch.cat([target_point,x],dim=-1).unsqueeze(0)
-        estimation = self.estimator(input_x).view(-1,2)
+        input_x = torch.cat([target_point,x],dim=-1) # (num, 66)
+        estimation = self.estimator(input_x).view(x.size()[0],-1,2)
         return estimation
 
     def _loss(self, target_point, x, gt, origin_point):
@@ -44,7 +44,10 @@ class Motion_Estimator(nn.Module):
         :param origin_point: (2, )
         :return: scalar
         '''
-        result = self(target_point,x)
+        assert target_point.size() == (2, ) and x.size() == (64, )
+        target_point = target_point.unsqueeze(0)
+        x = x.unqueeze(0)
+        result = self(target_point,x).squeeze()
         assert result.size() == gt.size()
         result = torch.cat([origin_point.unsqueeze(0),result],dim=0)
         gt = torch.cat([origin_point.unsqueeze(0),gt],dim=0)

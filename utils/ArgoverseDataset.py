@@ -22,8 +22,8 @@ def get_rotate_matrix(trajectory):
 
 
 class ArgoverseForecastDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg):
-        super().__init__()
+    def __init__(self, last_observe, root_dir):
+        super(ArgoverseForecastDataset).__init__()
         self.am = ArgoverseMap()
 
         self.axis_range = self.get_map_range(self.am) #用于normalize坐标
@@ -32,9 +32,9 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
         self.vector_map, self.extra_map = self.generate_vector_map()
         # self.save_vector_map(self.vector_map)
 
-        self.last_observe = cfg['last_observe']
+        self.last_observe = last_observe
         ##set root_dir to the correct path to your dataset folder
-        self.root_dir = cfg['data_locate']
+        self.root_dir = root_dir
         self.afl = ArgoverseForecastingLoader(self.root_dir)
         self.map_feature = dict(PIT=[], MIA=[])
         self.city_name, self.center_xy, self.rotate_matrix = dict(), dict(), dict()
@@ -121,7 +121,7 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
                                  has_traffic_control=[])}
         polyline = []
         # index = 1
-        pbar = tqdm(total=17326) # TODO: 为什么是17326
+        pbar = tqdm(total=17326) # MIA: 12574 PIT: 4952
         pbar.set_description("Generating Vector Map")
         for city_name in ['PIT', 'MIA']:
             for key in self.laneid_map[city_name]:
@@ -232,6 +232,7 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
 
     def generate_centerlines_uniform(self, city, N):
         ## 从整个HD地图上个随机选取N个centerline point
+        ## return (N, 2)
         ids = []
         for id in self.city_lane_centerlines_dict[city]:
             ids.append(id)

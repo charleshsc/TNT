@@ -1,8 +1,8 @@
-from Motion_Estimation import Motion_Estimator
-from Target_Prediction import Target_predictor
-from SubGraph import Subgraph
-from GlobalGraph import GraphAttentionNet
-from Trajectory_Scoring import Trajectory_Scorer
+from modeling.Motion_Estimation import Motion_Estimator
+from modeling.Target_Prediction import Target_predictor
+from modeling.SubGraph import Subgraph
+from modeling.GlobalGraph import GraphAttentionNet
+from modeling.Trajectory_Scoring import Trajectory_Scorer
 from utils import args
 from utils.utils import find_closest_to_gt_location, select_top_K_trajectories
 
@@ -20,7 +20,7 @@ class TNT(nn.Module):
         self.alpha = args.alpha
         self.last_observe = args.last_observe
         self.total_step = args.total_step
-        self.T = self.total_step - self.total_step  # for the predictor
+        self.T = self.total_step - self.last_observe  # for the predictor
         self.device = torch.device(args.device)
         self.lambda_1 = args.lambda_1
         self.lambda_2 = args.lambda_2
@@ -62,8 +62,8 @@ class TNT(nn.Module):
         batch_size = trajectory_batch.size()[0]
         self.candidate_targets = candidate_targets
 
-        label = trajectory_batch[:, self.cfg['last_observe']:, 2:4] # (bs, T, 2)
-        origin_point = trajectory_batch[:, self.last_observe, 2:4].suqeeze() # (bs, 2)
+        label = trajectory_batch[:, self.last_observe:, 2:4] # (bs, T, 2)
+        origin_point = trajectory_batch[:, self.last_observe -1 , 2:4].reshape(batch_size,2) # (bs, 2)
         predict_list = []
         loss = 0
 
@@ -101,7 +101,7 @@ class TNT(nn.Module):
             M_candidate_target = candidate_targets[i][M_idx] + M_delta_xy #(M, 2)
             M_x = target_prediction_x[M_idx] # (M, 64)
             M_trajectory = self.motion_estimator(M_candidate_target, M_x) # (M, T, 2)
-            loss3 = self.trajectory_scorer(M_trajectory,M_x,label[i])
+            loss3 = self.trajectory_scorer._loss(M_trajectory,M_x,label[i])
 
             loss = loss + self.lambda_1*loss1 + self.lambda_2*loss2 + self.lambda_3*loss3
 
@@ -126,7 +126,7 @@ class TNT(nn.Module):
         batch_size = trajectory_batch.size()[0]
         self.candidate_targets = candidate_targets
 
-        label = trajectory_batch[:, self.cfg['last_observe']:, 2:4]  # (bs, T, 2)
+        label = trajectory_batch[:, self.last_observe:, 2:4]  # (bs, T, 2)
 
         result, gt, city_name = dict(), dict(), dict()
         for i in range(batch_size):

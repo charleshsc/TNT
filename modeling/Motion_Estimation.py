@@ -11,16 +11,17 @@ class MLP(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (64 + 2,)
-        :return:
+        :param x: (num, 64 + 2)
+        :return: (num, 1)
         '''
-        x = self.fc(x.unsqueeze(0))
-        x = F.relu(F.layer_norm(x,x.size()[-1]))
+        x = self.fc(x)
+        x = F.relu(F.layer_norm(x,x.size()[-1:]))
         x = self.fc2(x)
         return x
 
 class Motion_Estimator(nn.Module):
     def __init__(self, input_channels=66, hidden_channels=64, output_channels=1):
+        # output_channels = 2 * T
         super(Motion_Estimator, self).__init__()
         self.estimator = MLP(input_channels, hidden_channels, output_channels)
 
@@ -46,9 +47,9 @@ class Motion_Estimator(nn.Module):
         '''
         assert target_point.size() == (2, ) and x.size() == (64, )
         target_point = target_point.unsqueeze(0)
-        x = x.unqueeze(0)
+        x = x.unsqueeze(0)
         result = self(target_point,x).squeeze()
-        assert result.size() == gt.size()
+        assert result.size() == gt.size(), 'result size:' + str(result.size())+' gt size:'+str(gt.size())
         result = torch.cat([origin_point.unsqueeze(0),result],dim=0)
         gt = torch.cat([origin_point.unsqueeze(0),gt],dim=0)
         res_perstep_offset = []
@@ -61,6 +62,5 @@ class Motion_Estimator(nn.Module):
         assert res_perstep_offset.size() == gt_perstep_offset.size()
         loss = self.L_reg(res_perstep_offset,gt_perstep_offset)
         return loss
-
 
 

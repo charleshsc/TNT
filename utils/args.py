@@ -8,8 +8,8 @@ import torch.cuda
 
 def obtain_env_args():
     abs_dir = osp.realpath(".")  # 当前的绝对位置
-    this_dir = abs_dir.split(osp.sep)[-1]
-    root_dir = abs_dir[:abs_dir.index(this_dir)]
+    root_name = 'TNT'
+    root_dir = abs_dir[:abs_dir.index(root_name)+len(root_name)]
     directory = osp.join(root_dir,'run')
 
     runs = sorted(glob.glob(osp.join(directory, 'experiment_*')))

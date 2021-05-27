@@ -31,5 +31,5 @@ class Saver(object):
         log_file = open(logfile, 'w')
 
         for key in vars(args):
-            log_file.write(key + ':' + getattr(args, key) + '\n')
+            log_file.write(key + ':' + str(getattr(args, key)) + '\n')
         log_file.close()

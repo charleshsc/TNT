@@ -5,18 +5,18 @@ import numpy as np
 from utils.loss import cross_entropy
 
 class MLP(nn.Module):
-    def __init__(self, input_channels=66, hidden_channels=64, output_channels=1):
+    def __init__(self, input_channels=102, hidden_channels=64, output_channels=1):
         super(MLP, self).__init__()
         self.fc = nn.Linear(input_channels, hidden_channels)
         self.fc2 = nn.Linear(hidden_channels,output_channels)
 
     def forward(self, x):
         '''
-        :param x: (64 + 2,)
-        :return:
+        :param x: (M, 64+2*T)
+        :return: (M, 1)
         '''
-        x = self.fc(x.unsqueeze(0))
-        x = F.relu(F.layer_norm(x,x.size()[-1]))
+        x = self.fc(x)
+        x = F.relu(F.layer_norm(x,x.size()[-1:]))
         x = self.fc2(x)
         return x
 
@@ -35,7 +35,7 @@ class Trajectory_Scorer(nn.Module):
         :return: (M, )
         '''
         assert s_F.size()[0] == x.size()[0]
-        input_x = torch.cat([s_F.flatten(start_dim=1),x],dim=-1)
+        input_x = torch.cat([s_F.flatten(start_dim=1),x],dim=-1) # (M, 64+2*T)
         g_x = self.g(input_x).squeeze()
         phi_x = F.softmax(g_x,dim=-1)
         return phi_x
@@ -47,6 +47,11 @@ class Trajectory_Scorer(nn.Module):
         :param s_gt: (T, 2)
         :return:
         '''
+        if s_F.is_cuda:
+            device = torch.device('cuda')
+        else:
+            device = torch.device('cpu')
+
         def D(s, s_GT):
             '''
             :param s: (T,2)
@@ -61,7 +66,7 @@ class Trajectory_Scorer(nn.Module):
             psi = []
             for s in s_F:
                 psi.append(D(s, s_gt))
-            psi = torch.from_numpy(np.array(psi)).squeeze()
+            psi = torch.from_numpy(np.array(psi)).squeeze().to(device=device,dtype=torch.float)
             psi = -psi / self.alpha
             psi = F.softmax(psi, dim=-1)  # label (M, )
 

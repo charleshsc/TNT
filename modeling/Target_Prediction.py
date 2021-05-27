@@ -11,11 +11,12 @@ class MLP(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (64 + 2,)
-        :return:
+        :param x: (N, 64 + 2)
+        :return: (N, 1)
         '''
-        x = self.fc(x.unsqueeze(0))
-        x = F.relu(F.layer_norm(x,x.size()[-1]))
+        x = self.fc(x)
+        #x = F.relu(F.layer_norm(x,x.size()))
+        x = F.relu(F.layer_norm(x,x.size()[-1:]))
         x = self.fc2(x)
         return x
 
@@ -36,7 +37,7 @@ class Target_predictor(nn.Module):
         :return: \pi: (N, ), v_x: (N,2)
         '''
         assert len(target_point.size()) == len(x.size()) and target_point.size()[0] == x.size()[0]
-        input_x = torch.cat([target_point,x],dim=-1)
+        input_x = torch.cat([target_point,x],dim=-1) # (N, 66)
         f_x = self.f(input_x).squeeze() # (N,)
         out_pi = F.log_softmax(f_x,dim=-1)
         v_x = self.v(input_x) # (N, 2)
@@ -64,20 +65,24 @@ class Target_predictor(nn.Module):
         :param delta_xy: the spatial offsets of u from the ground truth (2, )
         :return: loss
         '''
+        if x.is_cuda:
+            device = torch.device('cuda')
+        else:
+            device = torch.device('cpu')
         out_pi, v_x = self(target_point, x)
         out_pi = out_pi.unsqueeze(0) # (1, N)
         target_class = None
         for idx, point in enumerate(target_point):
             if point.data.equal(u.data):
-                target_class = torch.tensor([idx])
+                target_class = torch.tensor([idx]).to(device=device,dtype=torch.long)
                 break
         assert target_class is not None
         loss1 = self.L_cls(out_pi, target_class)
         target_v_xy = v_x[target_class]
+        delta_xy = delta_xy.unsqueeze(0)
         assert target_v_xy.size() == delta_xy.size()
         loss2 = self.L_offset(target_v_xy, delta_xy)
         return loss1 + loss2
-
 
 
 

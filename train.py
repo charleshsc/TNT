@@ -91,7 +91,7 @@ def main():
 
         ## validation
         with torch.no_grad():
-            metric_results = infer(model, args, val_argo_dst, val_loader)
+            metric_results = infer(model, args, val_argo_dst, val_loader, epochs)
 
         logging.info('Training Epoch %d/%d: minADE: %.4f, minFDE: %.4f, MR: %.4f' % (epochs, args.epochs, metric_results["minADE"], metric_results["minFDE"], metric_results["MR"]))
 
@@ -124,8 +124,8 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, epochs):
     device = torch.device(args.device)
     print_every = args.steps_to_print
 
-    bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
-    pbar = tqdm(train_loader, file=sys.stdout, bar_format=bar_format, ncols=80)
+    # bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
+    pbar = tqdm(train_loader,  ncols=80)
     for i, (traj_batch, map_batch) in enumerate(pbar):
         model.train()
         traj_batch = traj_batch.to(device=device, dtype=torch.float)
@@ -145,15 +145,16 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, epochs):
             logging.info('Training Epoch %d/%d: Iteration %d, loss = %.4f' % (epochs + 1, args.epochs, i + 1, loss.item()))
             writer.add_scalar("training_loss", loss.item(), epochs + 1)
 
+    pbar.close()
     torch.cuda.empty_cache()
 
 
-def infer(model, args, argo_dst, val_loader):
+def infer(model, args, argo_dst, val_loader, epochs):
     #### one epoch val ####
-    device = torch.device(args.deivce)
+    device = torch.device(args.device)
 
-    bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
-    pbar = tqdm(val_loader, file=sys.stdout, bar_format=bar_format, ncols=80)
+    # bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
+    pbar = tqdm(val_loader,  ncols=80)
     final_res, final_gt, final_city_name = dict(),dict(),dict()
     for i, (traj_batch, map_batch) in enumerate(pbar):
         model.eval()
@@ -167,20 +168,15 @@ def infer(model, args, argo_dst, val_loader):
         final_gt.update(gt)
         final_city_name.update(city_name)
 
+        pbar.set_description(
+            "[Val Epoch %d/%d: step %d/%d]" % (
+            epochs + 1, args.epochs, i + 1, len(val_loader)))
+
+    pbar.close()
+
+
     metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, model.K, model.T, model.min_distance)
     return metric_results
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    main()

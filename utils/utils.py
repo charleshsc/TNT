@@ -26,10 +26,10 @@ def select_top_K_trajectories(trajectory, score, K, min_distance):
     assert trajectory.size()[0] == score.size()[0]
     sort_indices = torch.sort(-score).indices
     res_trajectory = []
-    res_trajectory.append(trajectory[sort_indices[0]].numpy())
+    res_trajectory.append(trajectory[sort_indices[0]].cpu().numpy())
     num = 1
     for i in range(1, sort_indices.size()[0]):
-        tra = trajectory[sort_indices[i]].numpy()
+        tra = trajectory[sort_indices[i]].cpu().numpy()
         dis_to_selected = [distance_of_trajectory(tra, selected) for selected in res_trajectory]
         if np.min(dis_to_selected) > min_distance:
             res_trajectory.append(tra)
@@ -51,7 +51,7 @@ def distance_of_trajectory(trajectory_1, trajectory_2):
     tra_2 = torch.from_numpy(trajectory_2)
     assert tra_1.size() == tra_2.size()
     distance = torch.sum(torch.square(tra_1-tra_2),dim=-1)
-    return torch.max(distance).detach().numpy()
+    return torch.max(distance).cpu().detach().numpy()
 
 def copy_state_dict(cur_state_dict, pre_state_dict, prefix=''):
     def _get_params(key):

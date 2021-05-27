@@ -51,12 +51,14 @@ class Motion_Estimator(nn.Module):
         result = self(target_point,x).squeeze()
         assert result.size() == gt.size(), 'result size:' + str(result.size())+' gt size:'+str(gt.size())
         result = torch.cat([origin_point.unsqueeze(0),result],dim=0)
-        gt = torch.cat([origin_point.unsqueeze(0),gt],dim=0)
+        with torch.no_grad():
+            gt = torch.cat([origin_point.unsqueeze(0),gt],dim=0)
         res_perstep_offset = []
         gt_perstep_offset = []
         for idx in range(result.size()[0]-1):
             res_perstep_offset.append((result[idx+1]-result[idx]).unsqueeze(0))
-            gt_perstep_offset.append((gt[idx+1] - gt[idx]).unsqueeze(0))
+            with torch.no_grad():
+                gt_perstep_offset.append((gt[idx+1] - gt[idx]).unsqueeze(0))
         res_perstep_offset = torch.cat(res_perstep_offset,dim=0) # (T,2)
         gt_perstep_offset = torch.cat(gt_perstep_offset,dim=0) # (T,2)
         assert res_perstep_offset.size() == gt_perstep_offset.size()

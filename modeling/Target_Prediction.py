@@ -44,7 +44,7 @@ class Target_predictor(nn.Module):
         return out_pi, v_x
 
     def get_sort_idx(self, out_pi):
-        tmp = out_pi.detach().numpy()
+        tmp = out_pi.cpu().detach().numpy()
         tmp = np.argsort(-tmp)
         return tmp[:self.M]
 
@@ -71,11 +71,12 @@ class Target_predictor(nn.Module):
             device = torch.device('cpu')
         out_pi, v_x = self(target_point, x)
         out_pi = out_pi.unsqueeze(0) # (1, N)
-        target_class = None
-        for idx, point in enumerate(target_point):
-            if point.data.equal(u.data):
-                target_class = torch.tensor([idx]).to(device=device,dtype=torch.long)
-                break
+        with torch.no_grad():
+            target_class = None
+            for idx, point in enumerate(target_point):
+                if point.data.equal(u.data):
+                    target_class = torch.tensor([idx]).to(device=device,dtype=torch.long)
+                    break
         assert target_class is not None
         loss1 = self.L_cls(out_pi, target_class)
         target_v_xy = v_x[target_class]

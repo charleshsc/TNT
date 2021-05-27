@@ -65,7 +65,7 @@ class TNT(nn.Module):
         label = trajectory_batch[:, self.last_observe:, 2:4] # (bs, T, 2)
         origin_point = trajectory_batch[:, self.last_observe -1 , 2:4].reshape(batch_size,2) # (bs, 2)
         predict_list = []
-        loss = 0
+        final_loss = 0
 
         for i in range(batch_size):
 
@@ -91,9 +91,13 @@ class TNT(nn.Module):
             target_prediction_x = global_context_feature.repeat(self.N, 1)
             gt_location = label[i][-1] # (2, )
             u, delta_xy = find_closest_to_gt_location(candidate_targets[i], gt_location)
+            u.requires_grad_(False)
+            delta_xy.requires_grad_(False)
             loss1 = self.target_predictor._loss(candidate_targets[i], target_prediction_x, u, delta_xy)
 
             #### Motion Estimation ####
+            label[i].requires_grad_(False)
+            origin_point[i].requires_grad_(False)
             loss2 = self.motion_estimator._loss(gt_location, global_context_feature, label[i], origin_point[i])
 
             #### Trajectory Scoring ####
@@ -103,14 +107,19 @@ class TNT(nn.Module):
             M_trajectory = self.motion_estimator(M_candidate_target, M_x) # (M, T, 2)
             loss3 = self.trajectory_scorer._loss(M_trajectory,M_x,label[i])
 
-            loss = loss + self.lambda_1*loss1 + self.lambda_2*loss2 + self.lambda_3*loss3
+            loss = self.lambda_1*loss1 + self.lambda_2*loss2 + self.lambda_3*loss3
+            loss.backward(retain_graph=True)
+            final_loss = final_loss + loss.item()
 
-        loss = loss / batch_size
+            del loss
+            torch.cuda.empty_cache()
 
-        if np.isnan(loss.item()):
+        final_loss = final_loss / batch_size
+
+        if np.isnan(final_loss):
             print(trajectory_batch[:, 0, -1]) # the file name
             raise Exception("Loss ERROR!")
-        return loss
+        return final_loss
 
 
     def forward_val(self, trajectory_batch, vectormap_batch, candidate_targets):
@@ -160,7 +169,7 @@ class TNT(nn.Module):
 
             key = trajectory_batch[i, 0, -1].int().item()
             result.update({key: K_trajectory})
-            gt.update({key: label[i].numpy()})
+            gt.update({key: label[i].cpu().numpy()})
             city_name.update({key: city_name_list[i]})
 
         return result,gt,city_name

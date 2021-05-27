@@ -60,7 +60,7 @@ class Trajectory_Scorer(nn.Module):
             '''
             assert s.size() == s_GT.size()
             distance = torch.sum(torch.square(s-s_GT),dim=-1)
-            return torch.max(distance).detach().numpy()
+            return torch.max(distance).cpu().detach().numpy()
 
         with torch.no_grad():
             psi = []

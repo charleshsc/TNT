@@ -108,7 +108,7 @@ class TNT(nn.Module):
             loss3 = self.trajectory_scorer._loss(M_trajectory,M_x,label[i])
 
             loss = self.lambda_1*loss1 + self.lambda_2*loss2 + self.lambda_3*loss3
-            loss.backward(retain_graph=True)
+            loss.backward()
             final_loss = final_loss + loss.item()
 
             del loss

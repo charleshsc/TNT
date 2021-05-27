@@ -138,7 +138,7 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, epochs):
 
         loss = model(traj_batch, map_batch, candidate_targets)
         pbar.set_description(
-            "[Training Epoch %d/%d: step %d/%d, loss: %.4f]" % (epochs + 1, args.epochs, i + 1, len(train_loader), loss.item()))
+            "[Training Epoch %d/%d: step %d/%d, loss: %.4f]" % (epochs + 1, args.epochs, i + 1, len(train_loader), loss))
 
         parameters = [p for p in model.parameters() if p.grad is not None]
         for p in parameters:
@@ -147,10 +147,10 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, epochs):
         optimizer.step()
 
         if (i + 1) % print_every == 0:
-            logging.info('Training Epoch %d/%d: Iteration %d, loss = %.4f' % (epochs + 1, args.epochs, i + 1, loss.item()))
-            writer.add_scalar("training_loss", loss.item(), epochs + 1)
+            logging.info('Training Epoch %d/%d: Iteration %d, loss = %.4f' % (epochs + 1, args.epochs, i + 1, loss))
+            writer.add_scalar("training_loss", loss, epochs + 1)
 
-        del traj_batch, map_batch, loss, candidate_targets
+        del traj_batch, map_batch, candidate_targets
         torch.cuda.empty_cache()
 
     pbar.close()

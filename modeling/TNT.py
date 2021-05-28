@@ -108,15 +108,11 @@ class TNT(nn.Module):
             loss3 = self.trajectory_scorer._loss(M_trajectory,M_x,label[i])
 
             loss = self.lambda_1*loss1 + self.lambda_2*loss2 + self.lambda_3*loss3
-            loss.backward()
-            final_loss = final_loss + loss.item()
-
-            del loss
-            torch.cuda.empty_cache()
+            final_loss = final_loss + loss
 
         final_loss = final_loss / batch_size
 
-        if np.isnan(final_loss):
+        if np.isnan(final_loss.item()):
             print(trajectory_batch[:, 0, -1]) # the file name
             raise Exception("Loss ERROR!")
         return final_loss

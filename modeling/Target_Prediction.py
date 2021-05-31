@@ -11,8 +11,8 @@ class MLP(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (N, 64 + 2)
-        :return: (N, 1)
+        :param x: (bs, N, 64 + 2)
+        :return: (bs, N, 1)
         '''
         x = self.fc(x)
         #x = F.relu(F.layer_norm(x,x.size()))
@@ -32,55 +32,48 @@ class Target_predictor(nn.Module):
 
     def forward(self, target_point, x):
         '''
-        :param target_point: target coordinates (N,2)
-        :param x:  scene context feature (N, 64)
-        :return: \pi: (N, ), v_x: (N,2)
+        :param target_point: target coordinates (bs,N,2)
+        :param x:  scene context feature (bs,N, 64)
+        :return: \pi: (bs, N, ), v_x: (bs, N,2)
         '''
-        assert len(target_point.size()) == len(x.size()) and target_point.size()[0] == x.size()[0]
-        input_x = torch.cat([target_point,x],dim=-1) # (N, 66)
-        f_x = self.f(input_x).squeeze() # (N,)
-        out_pi = F.log_softmax(f_x,dim=-1)
-        v_x = self.v(input_x) # (N, 2)
+        assert len(target_point.size()) == len(x.size()) and target_point.size()[1] == x.size()[1]
+        input_x = torch.cat([target_point,x],dim=-1) # (bs, N, 66)
+        f_x = self.f(input_x).squeeze(2) # (bs, N,)
+        out_pi = F.log_softmax(f_x,dim=-1) # (bs, N)
+        v_x = self.v(input_x) # (bs, N, 2)
         return out_pi, v_x
 
     def get_sort_idx(self, out_pi):
+        # out_pi (bs, N)
         tmp = out_pi.cpu().detach().numpy()
-        tmp = np.argsort(-tmp)
-        return tmp[:self.M]
+        tmp = np.argsort(-tmp) # (bs, N)
+        tmp_list = []
+        for i in range(len(tmp)):
+            tmp_list.append(tmp[i][:self.M][np.newaxis,:]) # (1, M)
+        return np.concatenate(tmp_list,0) # (bs, M)
 
     def forward_M(self, target_point, x):
         '''
-        :param target_point: target coordinates (N,2)
-        :param x: scene context feature (N, 64)
-        :return: \pi: (M, ), v_x: (M,2), sort_idx (M, )
+        :param target_point: target coordinates (bs, N,2)
+        :param x: scene context feature (bs, N, 64)
+        :return: \pi: (bs, M, ), v_x: (bs, M,2), sort_idx (bs, M, )
         '''
         out_pi, v_x = self(target_point,x)
-        out_pi = torch.exp(out_pi)
-        sort_idx = self.get_sort_idx(out_pi)
-        return sort_idx, out_pi[sort_idx], v_x[sort_idx]
+        out_pi = torch.exp(out_pi) # (bs, N)
+        sort_idx = self.get_sort_idx(out_pi) #(bs, M)
+        return sort_idx, np.array([out_pi[bs][sort_idx[bs]] for bs in range(len(out_pi))]), np.array([v_x[bs][sort_idx[bs]] for bs in range(len(v_x))])
 
-    def _loss(self,target_point, x, u, delta_xy):
+    def _loss(self,target_point, x, u, delta_xy, idx):
         '''
-        :param u:  target closest to the ground truth location (2,)
-        :param delta_xy: the spatial offsets of u from the ground truth (2, )
+        :param u:  target closest to the ground truth location (bs, 2,)
+        :param delta_xy: the spatial offsets of u from the ground truth (bs, 2, )
+        :param idx: the index for the u in target_point (bs,)
         :return: loss
         '''
-        if x.is_cuda:
-            device = torch.device('cuda')
-        else:
-            device = torch.device('cpu')
-        out_pi, v_x = self(target_point, x)
-        out_pi = out_pi.unsqueeze(0) # (1, N)
-        with torch.no_grad():
-            target_class = None
-            for idx, point in enumerate(target_point):
-                if point.data.equal(u.data):
-                    target_class = torch.tensor([idx]).to(device=device,dtype=torch.long)
-                    break
-        assert target_class is not None
-        loss1 = self.L_cls(out_pi, target_class)
-        target_v_xy = v_x[target_class]
-        delta_xy = delta_xy.unsqueeze(0)
+        out_pi, v_x = self(target_point, x) # (bs, N) , (bs,N,2)
+        loss1 = self.L_cls(out_pi, idx)
+
+        target_v_xy = v_x.gather(dim=1,index=idx.repeat(2,1).T.unsqueeze(1)).squeeze(1) # (bs, 2)
         assert target_v_xy.size() == delta_xy.size()
         loss2 = self.L_offset(target_v_xy, delta_xy)
         return loss1 + loss2

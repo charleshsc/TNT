@@ -12,8 +12,8 @@ class MLP(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (M, 64+2*T)
-        :return: (M, 1)
+        :param x: (bs, M, 64+2*T)
+        :return: (bs, M, 1)
         '''
         x = self.fc(x)
         x = F.relu(F.layer_norm(x,x.size()[-1:]))
@@ -30,48 +30,46 @@ class Trajectory_Scorer(nn.Module):
 
     def forward(self, s_F, x):
         '''
-        :param s_F: (M, T, 2)
-        :param x: (M, 64 )
-        :return: (M, )
+        :param s_F: (bs, M, T, 2)
+        :param x: (bs, M, 64 )
+        :return: (bs, M )
         '''
-        assert s_F.size()[0] == x.size()[0]
-        input_x = torch.cat([s_F.flatten(start_dim=1),x],dim=-1) # (M, 64+2*T)
-        g_x = self.g(input_x).squeeze()
+        assert s_F.size()[1] == x.size()[1]
+        input_x = torch.cat([s_F.flatten(start_dim=2),x],dim=-1) # (bs, M, 64+2*T)
+        g_x = self.g(input_x).squeeze(2)
         phi_x = F.softmax(g_x,dim=-1)
         return phi_x
 
     def _loss(self, s_F, x, s_gt):
         '''
-        :param s_F: (M, T, 2)
-        :param x: (M, 64)
-        :param s_gt: (T, 2)
+        :param s_F: (bs, M, T, 2)
+        :param x: (bs, M, 64)
+        :param s_gt: (bs, T, 2)
         :return:
         '''
-        if s_F.is_cuda:
-            device = torch.device('cuda')
-        else:
-            device = torch.device('cpu')
+        M = s_F.size()[1]
 
         def D(s, s_GT):
             '''
-            :param s: (T,2)
-            :param s_GT: (T,2)
-            :return: numpy scalar
+            :param s: (bs,M,T,2)
+            :param s_GT: (bs,M,T,2)
+            :return: (bs,M)
             '''
-            assert s.size() == s_GT.size()
+            assert s.size() == s_GT.size(), "s size:"+str(s.size()) + "s_GT size: "+str(s_GT.size())
             distance = torch.sum(torch.square(s-s_GT),dim=-1)
-            return torch.max(distance).cpu().detach().numpy()
+            return torch.max(distance,dim=-1).values
 
         with torch.no_grad():
-            psi = []
-            for s in s_F:
-                psi.append(D(s, s_gt))
-            psi = torch.from_numpy(np.array(psi)).squeeze().to(device=device,dtype=torch.float)
+            s_m_gt = []
+            for gt in s_gt:
+                s_m_gt.append(gt.repeat(M,1).reshape(M,gt.size()[0],gt.size()[1]).unsqueeze(0)) # (1, M, T, 2)
+            s_m_gt = torch.cat(s_m_gt, 0) # (bs, M ,T, 2)
+            psi = D(s_F,s_m_gt) # (bs,M)
             psi = -psi / self.alpha
-            psi = F.softmax(psi, dim=-1)  # label (M, )
+            psi = F.softmax(psi, dim=-1)  # label (bs, M)
 
-        phi = self(s_F, x)
-        assert phi.size() == psi.size() and phi.size()[0] == self.M
+        phi = self(s_F, x) #(bs, M)
+        assert phi.size() == psi.size() and phi.size()[1] == self.M
         loss = self.loss_fn(phi, psi)
         return loss
 

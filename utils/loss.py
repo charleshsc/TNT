@@ -8,6 +8,9 @@ class cross_entropy(nn.Module):
         super(cross_entropy, self).__init__()
 
     def forward(self,res_prob, gt_prob):
-        assert res_prob.size() == gt_prob.size() and len(res_prob.size()) == 1
-        loss = -torch.sum(gt_prob * torch.log(res_prob) + (1 - gt_prob) * torch.log(1 - res_prob))
-        return loss
+        # (bs, M)
+        assert res_prob.size() == gt_prob.size() and len(res_prob.size()) == 2
+        loss = 0
+        for single_res, single_gt in zip(res_prob, gt_prob):
+            loss = loss + -torch.sum(single_gt * torch.log(single_res) + (1 - single_gt) * torch.log(1 - single_res))
+        return loss/res_prob.size()[0]

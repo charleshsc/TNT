@@ -5,16 +5,21 @@ import numpy as np
 
 def find_closest_to_gt_location(candidate_targets, gt_location):
     '''
-    :param candidate_targets: (N, 2) torch.tensor
-    :param gt_location:  (2, ) torch.tensor
-    :return: u (2, ) torch.tensor, delta_xy (2, ) torch.tensor
+    :param candidate_targets: (bs, N, 2) torch.tensor
+    :param gt_location:  (bs, 2 ) torch.tensor
+    :return: u (bs, 2, ) torch.tensor, delta_xy (bs, 2) torch.tensor
     '''
-    x = candidate_targets - gt_location
+    assert len(candidate_targets.size()) == 3 and len(gt_location.size()) == 2
+    batch_size = candidate_targets.size()[0]
+    N = candidate_targets.size()[1]
+    tmp_gt_location = gt_location.repeat(1, N).reshape(candidate_targets.size()) # (bs, N ,2)
+    x = candidate_targets - tmp_gt_location # (bs, N ,2)
     x = torch.square(x)
-    x = torch.sum(x, dim=1)
-    max_id = torch.argmin(x,dim=-1)
-    delta_xy = gt_location - candidate_targets[max_id]
-    return candidate_targets[max_id], delta_xy
+    x = torch.sum(x, dim=2) # (bs, N)
+    min_id = torch.argmin(x,dim=-1) # (bs, )
+    tmp_candidate_targets = candidate_targets.gather(dim=1,index=min_id.repeat(2,1).T.unsqueeze(1)).squeeze() # (bs, 2)
+    delta_xy = gt_location - tmp_candidate_targets
+    return tmp_candidate_targets, delta_xy, min_id
 
 def select_top_K_trajectories(trajectory, score, K, min_distance):
     '''

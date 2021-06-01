@@ -13,6 +13,7 @@ class Saver(object):
             os.makedirs(self.experiment_dir)
         self.args = args
         self.save_experiment_config(args)
+        self.save_scripts()
 
     def save_checkpoint(self, state, filename='checkpoint.pth'):
         """Saves checkpoint to disk"""
@@ -33,3 +34,20 @@ class Saver(object):
         for key in vars(args):
             log_file.write(key + ':' + str(getattr(args, key)) + '\n')
         log_file.close()
+
+    def save_scripts(self):
+        scripts_to_save = []
+
+        abs_dir = os.path.realpath(".")  # 当前的绝对位置
+        root_name = self.args.root_name
+        root_dir = abs_dir[:abs_dir.index(root_name) + len(root_name)]
+        for name in os.listdir(root_dir):
+            if name[0] != '.' and os.path.isdir(os.path.join(root_dir,name)):
+                scripts_to_save = scripts_to_save + glob.glob(os.path.join(root_dir, name,'*.py'))
+        scripts_to_save = scripts_to_save + glob.glob(os.path.join(root_dir,'*.py'))
+
+        if scripts_to_save is not None:
+            os.mkdir(os.path.join(self.experiment_dir, 'scripts'))
+            for script in scripts_to_save:
+                dst_file = os.path.join(self.experiment_dir, 'scripts', os.path.basename(script))
+                shutil.copyfile(script, dst_file)

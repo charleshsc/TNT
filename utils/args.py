@@ -45,8 +45,8 @@ def obtain_env_args():
     parser.add_argument('--min_distance',type=float, default=0.5, help="the min distance in selection stage")
     parser.add_argument('--seed',type=int, default=12345, help="the seed to init the random")
     parser.add_argument('--learning_rate',type=float,default=0.001,help="the learning rate for the optimizer")
-    parser.add_argument('--train_data_locate',type=str,default="../forecasting_sample/data",help="the dataset root directory")
-    parser.add_argument('--val_data_locate',type=str,default=None,help="the val dataset root directory")
+    parser.add_argument('--train_data_locate',type=str,default="../train/data",help="the dataset root directory")
+    parser.add_argument('--val_data_locate',type=str,default="../val/data",help="the val dataset root directory")
     parser.add_argument('--num_worker',type=int,default=0,help="the num worker for the data loader")
     parser.add_argument('--traj_features',type=int,default=6,help="the feature dim for the trajectory")
     parser.add_argument('--map_features',type=int,default=8,help="the feature dim for the map")
@@ -55,6 +55,7 @@ def obtain_env_args():
     parser.add_argument('--epochs_to_save',type=int,default=1,help="the num epochs to save the model")
     parser.add_argument('--resume',type=str,default=None,help="the pretrained model to reload")
     parser.add_argument('--ft',type=bool,default=True,help="fine-tuning in optimizer")
+    parser.add_argument('--root_name',type=str,default=root_name,help="save the scripts helping")
 
     args = parser.parse_args()
     return args

@@ -1,22 +1,15 @@
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import torch.optim as optim
-from utils.ArgoverseDataset import ArgoverseForecastDataset
-from modeling.TNT import TNT
+from Dataset.ArgoverseDataset import ArgoverseForecastDataset
+from models.TNT import TNT
 from utils.args import obtain_env_args
-from utils.Saver import Saver
-from utils.eval_forecasting import compute_forecasting_metrics
+from eval.eval_forecasting import compute_forecasting_metrics
 from utils.utils import copy_state_dict
-import numpy as np
-import random
 
 from tqdm import tqdm
 import sys
 import os
-import logging
-from torch.utils.tensorboard import SummaryWriter
+
 
 def main():
     args = obtain_env_args()
@@ -59,6 +52,8 @@ def infer(model, args, argo_dst, val_loader):
         final_res.update(res)
         final_gt.update(gt)
         final_city_name.update(city_name)
+
+    pbar.close()
 
     metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, model.K, model.T, model.min_distance)
     return metric_results

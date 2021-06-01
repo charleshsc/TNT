@@ -1,8 +1,8 @@
-from modeling.Motion_Estimation import Motion_Estimator
-from modeling.Target_Prediction import Target_predictor
-from modeling.SubGraph import Subgraph
-from modeling.GlobalGraph import GraphAttentionNet
-from modeling.Trajectory_Scoring import Trajectory_Scorer
+from models.Motion_Estimation import Motion_Estimator
+from models.Target_Prediction import Target_predictor
+from models.SubGraph import Subgraph
+from models.GlobalGraph import GraphAttentionNet
+from models.Trajectory_Scoring import Trajectory_Scorer
 from utils import args
 from utils.utils import find_closest_to_gt_location, select_top_K_trajectories
 

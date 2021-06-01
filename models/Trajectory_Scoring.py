@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from utils.loss import cross_entropy
+from loss.Cross_Entropy import cross_entropy
 
 class MLP(nn.Module):
     def __init__(self, input_channels=102, hidden_channels=64, output_channels=1):

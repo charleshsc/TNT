@@ -1,22 +1,21 @@
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.optim as optim
-from utils.ArgoverseDataset import ArgoverseForecastDataset
-from modeling.TNT import TNT
-from utils.args import obtain_env_args
-from utils.Saver import Saver
-from utils.eval_forecasting import compute_forecasting_metrics
-from utils.utils import copy_state_dict
-import numpy as np
-import random
-
+import time
 from tqdm import tqdm
 import sys
 import os
-import logging
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
+import random
+
+from Dataset.ArgoverseDataset import ArgoverseForecastDataset
+from models.TNT import TNT
+from utils.args import obtain_env_args
+from utils.Saver import Saver
+from eval.eval_forecasting import compute_forecasting_metrics
+from utils.utils import copy_state_dict
+from utils.logger import get_logger
 
 # Manual Seed
 def setup_seed(seed):
@@ -31,11 +30,8 @@ def main():
     args = obtain_env_args()
     writer = SummaryWriter(args.save)
 
-    log_format = '%(asctime)s %(message)s'
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
-    fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
-    fh.setFormatter(logging.Formatter(log_format))
-    logging.getLogger().addHandler(fh)
+    time_str = time.strftime("%Y%m%d_%H%M%S")
+    logger = get_logger(__name__, os.path.join(args.save, time_str + '.log'))
 
     #### preparation ####
     torch.backends.cudnn.enabled = True
@@ -79,13 +75,13 @@ def main():
               .format(args.resume, checkpoint['epoch']))
 
 
-    logging.info("Start Training")
+    logger.info("Start Training")
     for epochs in range(start_epochs, args.epochs):
-        logging.info("New epochs: "+str(epochs))
-        logging.info("lr: " + str(optimizer.param_groups[0]['lr']))
+        logger.info("New epochs: "+str(epochs))
+        logger.info("lr: " + str(optimizer.param_groups[0]['lr']))
 
         ## training
-        train(model, args, argo_dst, train_loader, optimizer, writer, epochs)
+        train(model, args, argo_dst, train_loader, optimizer, writer, logger, epochs)
         torch.cuda.empty_cache()
         lr_policy.step()
 
@@ -93,7 +89,7 @@ def main():
         with torch.no_grad():
             metric_results = infer(model, args, val_argo_dst, val_loader, epochs)
 
-        logging.info('Training Epoch %d/%d: minADE: %.4f, minFDE: %.4f, MR: %.4f' % (epochs, args.epochs, metric_results["minADE"], metric_results["minFDE"], metric_results["MR"]))
+        logger.info('Training Epoch %d/%d: minADE: %.4f, minFDE: %.4f, MR: %.4f' % (epochs, args.epochs, metric_results["minADE"], metric_results["minFDE"], metric_results["MR"]))
 
         cur_save_model = False
         if metric_results["minADE"] < best_pred["minADE"][1]:
@@ -117,9 +113,9 @@ def main():
             }
             saver.save_checkpoint(state, filename)
 
-    logging.info("Finish Training")
+    logger.info("Finish Training")
 
-def train(model, args, argo_dst, train_loader, optimizer, writer, epochs):
+def train(model, args, argo_dst, train_loader, optimizer, writer, logger, epochs):
     #### one epoch training ####
     device = torch.device(args.device)
     print_every = args.steps_to_print
@@ -142,7 +138,7 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, epochs):
         optimizer.step()
 
         if (i + 1) % print_every == 0:
-            logging.info('Training Epoch %d/%d: Iteration %d, loss = %.4f' % (epochs + 1, args.epochs, i + 1, loss.item()))
+            logger.info('Training Epoch %d/%d: Iteration %d, loss = %.4f' % (epochs + 1, args.epochs, i + 1, loss.item()))
             writer.add_scalar("training_loss", loss.item(), epochs + 1)
 
         torch.cuda.empty_cache()

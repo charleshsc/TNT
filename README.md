@@ -14,7 +14,11 @@ It total contains 4 parts:
 
 2. Target prediction
 
-   It models the potential future targets: $\Tau = \{\tau^n \} = \{(x^n,y^n) + (\Delta x^n, \Delta y^n)  \}_{n=1}^N$ . The distribution over targets can be modeled via a discrete-continuous factorization:
+   It models the potential future targets: 
+   $$
+   \Tau = \{\tau^n \} = \{(x^n,y^n) + (\Delta x^n, \Delta y^n)  \}_{n=1}^N
+   $$
+   The distribution over targets can be modeled via a discrete-continuous factorization:
    $$
    p(\tau^n | x) = \pi (\tau^n | x) \cdot \mathcal{N} (\Delta x^n | v_x^n (x)) \cdot \mathcal{N} (\Delta y^n | v_y^n (x))
    $$
@@ -157,7 +161,7 @@ And it's better to set the `num_worker`  as 0 since if being set more than 0, it
 @misc{hu2021TNTimple,
 	auther = 		{Shengchao Hu},
 	title = 		{TNT Re-implementation},
-	howpublished = 	{\url{https://github.com/charleshsc/TNT}},
+	howpublished = 	        {\url{https://github.com/charleshsc/TNT}},
 	year = 			{2021}
 }
 ```

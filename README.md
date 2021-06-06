@@ -2,7 +2,7 @@
 
 Paper: [TNT: Target-driveN Trajectory Prediction](https://arxiv.org/pdf/2008.08294.pdf)
 
-
+**Note.** If you cannot see the formulation correctly, you need to install this [plugin](https://chrome.google.com/webstore/detail/mathjax-plugin-for-github/ioemnmodlmafdkllaclgeombjnmnbima/related) in Chrome
 
 This paper focus on the task of future trajectory prediction for moving road agents, where both the states and the targets are represented by their physical locations $(x_t, y_t)$. 
 

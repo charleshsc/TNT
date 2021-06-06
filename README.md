@@ -17,7 +17,7 @@ It total contains 4 parts:
    It models the potential future targets:
 
    $$
-   \Tau = \{\tau^n \} = \{(x^n,y^n) + (\Delta x^n, \Delta y^n)  \}_{n=1}^N
+   T = \{\tau^n \} = \{(x^n,y^n) + (\Delta x^n, \Delta y^n)  \}_{n=1}^N
    $$
    
    The distribution over targets can be modeled via a discrete-continuous factorization:
@@ -29,7 +29,7 @@ It total contains 4 parts:
    The loss function for training this stage is given by 
 
    $$
-   \mathcal{L}_{S1} = \mathcal{L}_{cls} (\pi, u) + \mathcal{L}_{offset} (v_x, v_y, \Delta x^u, \Delta y^u)
+   \mathcal{L_{S1}} = \mathcal{L_{cls}} (\pi, u) + \mathcal{L_{offset}} (v_x, v_y, \Delta x^u, \Delta y^u)
    $$
 
 3. Target-conditioned motion estimation
@@ -37,7 +37,7 @@ It total contains 4 parts:
    It models the likelihood of a trajectory given a target as $p(s_F|\tau, x) = \prod_{t=1}^T p(s_t|\tau, x)$. It takes context feature $x$ and a target location $\tau$ as input, and outputs one most likely future trajectory $[\hat{s_1}, \dots, \hat{s_T}]$ per target. During training stage, it applies a teacher forcing technique by feeding the ground truth location $(x^u, y^u)$ as target. The loss term for this stage is the distance between predicted states $\hat{s_t}$ and ground truth $s_t$ :
 
    $$
-   \mathcal{L}_{S2} = \sum_{t=1}^T \mathcal{L}_{reg} (\hat{s_t}, s_t)
+   \mathcal{L_{S2}} = \sum_{t=1}^T \mathcal{L_{reg}} (\hat{s_t}, s_t)
    $$
    
    where $\mathcal{L}_{reg}$ is implemented as Huber loss over per-step coordinate offsets.
@@ -55,7 +55,7 @@ It total contains 4 parts:
    The loss function for training this stage is the cross entropy between the predicted scores and ground truth scores:
    
    $$
-   \mathcal{L}_{S3} = \mathcal{L}_{CE} (\phi(s_F | x), \psi(s_F))
+   \mathcal{L_{S3}} = \mathcal{L_{CE}} (\phi(s_F | x), \psi(s_F))
    $$
    
    Then we first sort the trajectories according to their score in descending order, and then pick them greedily; if one trajectory is distant enough from all the selected trajectories, we select it as well, otherwise exclude it.
@@ -66,7 +66,7 @@ The total loss function is as follow:
 
 
 $$
-\mathcal{L} = \lambda_1 \mathcal{L}_{S1} + \lambda_2 \mathcal{L}_{S2} + \lambda_3 \mathcal{L}_{S3}
+\mathcal{L} = \lambda_1 \mathcal{L_{S1}} + \lambda_2 \mathcal{L_{S2}} + \lambda_3 \mathcal{L_{S3}}
 $$
 
 The total framework is as follows:

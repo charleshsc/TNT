@@ -17,8 +17,6 @@ def init_logger():
     logger.addHandler(console)
     return logger
 
-logger = init_logger()
-
 am = ArgoverseMap()
 
 poly = am.get_vector_map_lane_polygons('MIA')
@@ -34,7 +32,7 @@ for key in city_halluc_tableidx_to_laneid_map['MIA']:
     tmp1_map[city_halluc_tableidx_to_laneid_map['MIA'][key]] = key
 laneid_map['MIA'] = tmp1_map
 
-afl = ArgoverseForecastingLoader('forecasting_sample/data')
+afl = ArgoverseForecastingLoader('../forecasting_sample/data')
 
 print(len(afl.seq_list))
 seq_path = afl.seq_list[0]

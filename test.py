@@ -14,13 +14,20 @@ import os
 def main():
     args = obtain_env_args()
 
-    val_argo_dst = ArgoverseForecastDataset(args.last_observe, args.val_data_locate)
+    #### preparation ####
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
+    if torch.cuda.is_available():
+        torch.cuda.set_device(args.gpu)
+
+    val_argo_dst = ArgoverseForecastDataset(args.last_observe, args.test_data_locate)
     val_loader = DataLoader(dataset=val_argo_dst, batch_size=args.batch_size, num_workers=args.num_worker)
 
     model = TNT(traj_features=args.traj_features, map_features=args.map_features, args=args)
     model.to(torch.device(args.device))
 
-    assert args.resume is not None
+    if args.resume is None:
+        raise ValueError("please give the resume model ")
     if not os.path.isfile(args.resume):
         raise RuntimeError("=> no checkpoint found at '{}'".format(args.resume))
     checkpoint = torch.load(args.resume)
@@ -58,4 +65,5 @@ def infer(model, args, argo_dst, val_loader):
     metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, model.K, model.T, model.min_distance)
     return metric_results
 
-
+if __name__ == '__main__':
+    main()

@@ -10,6 +10,10 @@ from tqdm import tqdm
 import sys
 import os
 
+city_lanenum = {
+            'PIT' : 4891,
+            'MIA' : 12417
+            }
 
 def main():
     args = obtain_env_args()
@@ -21,7 +25,7 @@ def main():
         torch.cuda.set_device(args.gpu)
 
     val_argo_dst = ArgoverseForecastDataset(args.last_observe, args.test_data_locate)
-    val_loader = DataLoader(dataset=val_argo_dst, batch_size=args.batch_size, num_workers=args.num_worker)
+    val_loader = DataLoader(dataset=val_argo_dst, batch_size=args.batch_size, num_workers=args.num_worker,pin_memory=True)
 
     model = TNT(traj_features=args.traj_features, map_features=args.map_features, args=args)
     model.to(torch.device(args.device))
@@ -45,24 +49,27 @@ def infer(model, args, argo_dst, val_loader):
     #### one epoch val ####
     device = torch.device(args.deivce)
 
-    bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
-    pbar = tqdm(val_loader, file=sys.stdout, bar_format=bar_format, ncols=80)
+    pbar = tqdm(val_loader, ncols=80)
     final_res, final_gt, final_city_name = dict(),dict(),dict()
-    for i, (traj_batch, map_batch) in enumerate(pbar):
+    for i, (traj_batch, map_batch, city_names) in enumerate(pbar):
         model.eval()
         traj_batch = traj_batch.to(device=device, dtype=torch.float)
+        vectormap_batch = []
+        for batch, name in zip(map_batch, city_names):
+            vectormap_batch.append(batch[:city_lanenum[name]].to(device=device, dtype=torch.float))
         candidate_targets = [argo_dst.generate_centerlines_uniform(city, args.N).to(device=device, dtype=torch.float)
-                             for city in map_batch['city_name']]
+                             for city in city_names]
         assert len(candidate_targets) == traj_batch.size()[0]
 
-        res, gt, city_name= model(traj_batch, map_batch, candidate_targets)
+        res, gt, city_name= model(traj_batch, vectormap_batch, city_names, candidate_targets)
         final_res.update(res)
         final_gt.update(gt)
         final_city_name.update(city_name)
 
     pbar.close()
 
-    metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, model.K, model.T, model.min_distance)
+    T = args.total_step - args.last_observe
+    metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, args.K, T, args.miss_threshold)
     return metric_results
 
 if __name__ == '__main__':

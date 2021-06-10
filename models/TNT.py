@@ -42,46 +42,39 @@ class TNT(nn.Module):
         #### Trajectory scoring component ####
         self.trajectory_scorer = Trajectory_Scorer(input_channels=2*self.T + 64, M=self.M, alpha=self.alpha)
 
-    def forward(self, trajectory_batch, vectormap_batch, candidate_targets):
+    def forward(self, trajectory_batch, vectormap_batch, city_names, candidate_targets):
         if self.training:
-            return self.forward_train(trajectory_batch, vectormap_batch, candidate_targets)
+            return self.forward_train(trajectory_batch, vectormap_batch, city_names, candidate_targets)
         else:
-            return self.forward_val(trajectory_batch, vectormap_batch, candidate_targets)
+            return self.forward_val(trajectory_batch, vectormap_batch, city_names, candidate_targets)
 
 
-    def forward_train(self, trajectory_batch, vectormap_batch, candidate_targets):
+    def forward_train(self, trajectory_batch, vectormap_batch, city_names, candidate_targets):
         '''
         :param trajectory_batch: (batch_size, 49, 6)
-        :param vectormap_batch: {'city_name' : List[batch_size], 'PIT' : List[torch.tensor:(batch_size, 18|2|4|6, 8)]:len=4952
-                                    'MIA' : List[torch.tensor:(batch_size, 18|6|2 , 8)]:len = 12574}
+        :param vectormap_batch: List[(12417, 18, 8)] len=batch_size
+        :param city_names: List[] len=batch_size
         :param candidate_targets: List[torch.tensor(N,2)] len=batch_size
         :return:
         '''
-        vectormap_list = [vectormap_batch['PIT'], vectormap_batch['MIA']]
-        city_name_list = vectormap_batch['city_name']
         batch_size = trajectory_batch.size()[0]
         candidate_targets = torch.cat([candi_targets.unsqueeze(0) for candi_targets in candidate_targets],dim=0)
 
         label = trajectory_batch[:, self.last_observe:, 2:4] # (bs, T, 2)
-        origin_point = trajectory_batch[:, self.last_observe -1 , 2:4].reshape(batch_size,2) # (bs, 2)
+        origin_point = trajectory_batch[:, self.last_observe-1, 2:4].reshape(batch_size,2) # (bs, 2)
 
         context_feature_list = []
-        for i in range(batch_size):
 
-            #### Scene context encoding ####
-            polyline_list = []
-            if city_name_list[i] == 'PIT':
-                index = 0
-            else:
-                index = 1
+        #### Scene context encoding ####
+        trajectory_feature = self.trajectory_subgraph(trajectory_batch[:, :self.last_observe])  # (bs, 128)
 
-            polyline_list.append(self.trajectory_subgraph(trajectory_batch[[i], :self.last_observe])) # (1, 128)
-            for vec_map in vectormap_list[index]:
-                single_vec_map = vec_map[[i]].to(device=self.device, dtype=torch.float) # (1, 18 | 8, 8)
-                map_feature = self.map_subgraph(single_vec_map) # ( 1, 128)
-                polyline_list.append(map_feature)
+        assert len(vectormap_batch) == len(city_names)
+        for i, city in enumerate(city_names):
+            single_vec_map = vectormap_batch[i] #(12417 | 4891, 18, 8)
+            map_feature = self.map_subgraph(single_vec_map)  # ( 12417 | 4891, 128)
+            complex_feature = torch.cat([trajectory_feature[[i]], map_feature], dim=0) # (12418 | 4892, 128)
 
-            polyline_feature = F.normalize(torch.cat(polyline_list, dim=0), p=2, dim=1)  # L2 normalize
+            polyline_feature = F.normalize(complex_feature, p=2, dim=1)  # L2 normalize
 
             global_context_feature = self.global_graph(polyline_feature)[[0]]  # (1, 64)
             context_feature_list.append(global_context_feature)
@@ -117,40 +110,33 @@ class TNT(nn.Module):
         return loss
 
 
-    def forward_val(self, trajectory_batch, vectormap_batch, candidate_targets):
+    def forward_val(self, trajectory_batch, vectormap_batch, city_names, candidate_targets):
         '''
         :param trajectory_batch: (batch_size, 49, 6)
-        :param vectormap_batch: {'city_name' : List[batch_size], 'PIT' : List[torch.tensor:(batch_size, 18|2|4|6, 8)]:len=4952
-                                    'MIA' : List[torch.tensor:(batch_size, 18|6|2 , 8)]:len = 12574}
+        :param vectormap_batch: List[(12417, 18, 8)] len=batch_size
+        :param city_names: List[] len=batch_size
         :param candidate_targets: List[torch.tensor(N,2)] len=batch_size
         :return: result {key : K_trajectory(List[np.ndarray](K,T,2)}, gt {key : trajecoty(np.ndarray(T,2)}
         '''
-        vectormap_list = [vectormap_batch['PIT'], vectormap_batch['MIA']]
-        city_name_list = vectormap_batch['city_name']
         batch_size = trajectory_batch.size()[0]
         candidate_targets = torch.cat([candi_targets.unsqueeze(0) for candi_targets in candidate_targets],dim=0)
 
         label = trajectory_batch[:, self.last_observe:, 2:4]  # (bs, T, 2)
 
         result, gt, city_name = dict(), dict(), dict()
+
         context_feature_list = []
-        for i in range(batch_size):
-            #### Scene context encoding ####
-            polyline_list = []
-            if city_name_list[i] == 'PIT':
-                index = 0
-            else:
-                index = 1
 
-            polyline_list.append(self.trajectory_subgraph(trajectory_batch[[i], :self.last_observe]))
-            for vec_map in vectormap_list[index]:
-                single_vec_map = vec_map[[i]].to(device=self.device, dtype=torch.float)
-                map_feature = self.map_subgraph(single_vec_map)
-                polyline_list.append(map_feature)
+        trajectory_feature = self.trajectory_subgraph(trajectory_batch[:, :self.last_observe])  # (bs, 128)
 
-            polyline_feature = F.normalize(torch.cat(polyline_list, dim=0), p=2, dim=1)  # L2 normalize
+        for i, city in enumerate(city_names):
+            single_vec_map = vectormap_batch[i]  # (12417 | 4891, 18, 8)
+            map_feature = self.map_subgraph(single_vec_map)  # ( 12417 | 4891, 128)
+            complex_feature = torch.cat([trajectory_feature[[i]], map_feature], dim=0)  # (12418 | 4892, 128)
 
-            global_context_feature = self.global_graph(polyline_feature)[[0]]  # (1, 64 )
+            polyline_feature = F.normalize(complex_feature, p=2, dim=1)  # L2 normalize
+
+            global_context_feature = self.global_graph(polyline_feature)[[0]]  # (1, 64)
             context_feature_list.append(global_context_feature)
 
         context_feature = torch.cat(context_feature_list, 0)  # (bs, 64)
@@ -171,7 +157,7 @@ class TNT(nn.Module):
             key = trajectory_batch[i, 0, -1].int().item()
             result.update({key: K_trajectory})
             gt.update({key: label[i].cpu().numpy()})
-            city_name.update({key: city_name_list[i]})
+            city_name.update({key: city_names[i]})
 
         return result,gt,city_name
 

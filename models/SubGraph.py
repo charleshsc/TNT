@@ -20,7 +20,7 @@ class subgraph_layer(nn.Module):
         encode_data = F.relu(F.layer_norm(hidden, hidden.size()[1:])) # (bs|1, last_obeserve | 18, 64)
         kernel_size = encode_data.size()[1]  # last_observe | 18
         maxpool = nn.MaxPool1d(kernel_size)
-        polyline_feature = maxpool(encode_data.transpose(1,2)).squeeze(dim=2)
+        polyline_feature = maxpool(encode_data.transpose(1,2)).squeeze(dim=2) # (bs|1 , 64)
         polyline_feature = polyline_feature.repeat(1, kernel_size).reshape(encode_data.size()) # (bs|1, last_obeserve | 18, 64)
         output = torch.cat([encode_data,polyline_feature],2) # (bs|1, last_obeserve | 18, 128)
         return output

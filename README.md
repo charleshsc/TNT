@@ -107,8 +107,16 @@ Training on Linux server; CUDA version 10.1
 > pip install opencv-python
 
 And need to install the [argoverse-api](https://github.com/argoai/argoverse-api).
-
-I have also provided a singularity container which has configured the environment.
+Except follow these instructions in the offical web, there are still others package need to install.
+If you encounter this error:
+```angular2html
+ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+```
+You need to follow these instructions:
+```angular2html
+sudo apt update
+sudo apt install libgl1-mesa-glx
+```
 
 
 
@@ -145,7 +153,7 @@ After configuring the Environment, you can follow the instruments below to train
    Simple training code just as follows:
 
    ```
-   python train.py --gpu 0
+   python train.py --gpu 0 --batch_size 12 --num_worker 6
    ```
 
    notice that this repository only supports for single-GPU running, and you can specify which gpu card to use.
@@ -160,7 +168,10 @@ After configuring the Environment, you can follow the instruments below to train
 
 **Note.** The root name of this repository do not to be changed, or it cannot find the save path. Keep this repository name `TNT`.
 
-**Note.** it's better to set the `num_worker`  as 0 since if being set more than 0, it will occur some unexpected bugs. The reason may be that it is complex in the dataloader and due to my little knowledge, I cannot make it to become parallel.
+~~**Note.** it's better to set the `num_worker`  as 0 since if being set more than 0, it will occur some unexpected bugs. The reason may be that it is complex in the dataloader and due to my little knowledge, I cannot make it to become parallel.~~
+
+**Note.** In order to deal with the dataset, I manually remove those map data whose length is not equal 18 in order to pack 
+it as torch.tensor where every data dimension must be the same.
 
 
 
@@ -210,7 +221,7 @@ After configuring the Environment, you can follow the instruments below to train
 | epochs_to_save    | 1             | the num epochs to save the model                 |
 | resume            | None          | the pretrained model to reload                   |
 | ft                | True          | fine-tuning in optimizer                         |
-
+| miss_threshold    | 2.0           | The miss threshold in the eval stage for the MR  |
 
 
 ## References

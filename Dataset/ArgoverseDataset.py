@@ -36,7 +36,6 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
         ##set root_dir to the correct path to your dataset folder
         self.root_dir = root_dir
         self.afl = ArgoverseForecastingLoader(self.root_dir)
-        self.map_feature = dict(PIT=[], MIA=[])
         self.city_name, self.center_xy, self.rotate_matrix = dict(), dict(), dict()
 
         self.city_lane_centerlines_dict = self.am.build_centerline_index()
@@ -51,7 +50,7 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
         self.city_name.update({str(traj_id): city_name})
         center_xy = self.trajectory[self.last_observe-1][1]
         self.center_xy.update({str(traj_id): center_xy})
-        trajectory_feature = (self.trajectory - np.array(center_xy).reshape(1, 1, 2)).reshape(-1, 4)
+        trajectory_feature = (self.trajectory - np.array(center_xy).reshape(2)).reshape(-1, 4)
         rotate_matrix = get_rotate_matrix(trajectory_feature[self.last_observe, :])   # rotate coordinate
         self.rotate_matrix.update({str(traj_id): rotate_matrix})
         trajectory_feature = ((trajectory_feature.reshape(-1, 2)).dot(rotate_matrix.T)).reshape(-1, 4)
@@ -62,24 +61,24 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
                                                         # extra_fields['OBJECT_TYPE'].reshape(-1, 1),
                                                         extra_fields['trajectory_id'].reshape(-1, 1)))).float()
         map_feature_dict = dict(PIT=[], MIA=[])
-        for city in ['PIT', 'MIA']:
-            for i in range(len(self.vector_map[city])):
-                map_feature = (self.vector_map[city][i] -
-                               np.array(center_xy).reshape(1, 1, 2)).reshape(-1, 2)
-                map_feature = (map_feature.dot(rotate_matrix.T)).reshape(-1, 4)
-                map_feature = self.normalize_coordinate(map_feature, city)
-                tmp_tensor = torch.from_numpy(np.hstack((map_feature,
-                                                         self.extra_map[city]['turn_direction'][i],
-                                                         self.extra_map[city]['in_intersection'][i],
-                                                         self.extra_map[city]['has_traffic_control'][i],
-                                                         # self.extra_map[city]['OBJECT_TYPE'][i],
-                                                         self.extra_map[city]['lane_id'][i])))
-                map_feature_dict[city].append(tmp_tensor.float())
-                # self.map_feature[city] = np.array(self.map_feature[city])
-            self.map_feature[city] = map_feature_dict[city]
-        self.map_feature['city_name'] = city_name
-        # traj_feature: [49,6], len(self.map_feature) = 4952 (PIT)
-        return self.traj_feature, self.map_feature
+
+        laneid_len = len(self.vector_map[city_name]) # 4891 | 12417
+        map_feature = (self.vector_map[city_name] -
+                       np.array(center_xy).reshape(2)).reshape(laneid_len, -1, 2) # 4891 | 12417 * 36 * 2
+        map_feature = (map_feature.dot(rotate_matrix.T)).reshape(laneid_len, -1, 4) # 4891 | 12417 * 18 * 4
+        map_feature = self.normalize_coordinate(map_feature, city_name)
+        self.map_feature = torch.from_numpy(np.hstack((map_feature.transpose(0,2,1),
+                                                 self.extra_map[city_name]['turn_direction'].transpose(0,2,1),
+                                                 self.extra_map[city_name]['in_intersection'].transpose(0,2,1),
+                                                 self.extra_map[city_name]['has_traffic_control'].transpose(0,2,1),
+                                                 # self.extra_map[city]['OBJECT_TYPE'][i],
+                                                 self.extra_map[city_name]['lane_id'].transpose(0,2,1))).transpose(0,2,1)) # 4891 | 12417 * 18 * 8
+        self.map_feature = self.map_feature.float()
+        zeros_padding = torch.zeros((12417 - 4891, 18, 8))
+        if self.map_feature.size(0) == 4891:
+            self.map_feature = torch.cat([zeros_padding, self.map_feature],dim=0)
+        # traj_feature: [49,6], map_feature :[4891 | 12417, 18, 8]
+        return self.traj_feature, self.map_feature, city_name
 
     def get_trajectory(self, index):
         seq_path = self.afl.seq_list[index] # 每个index代表一个csv文件，seq_path为文件路径
@@ -134,6 +133,11 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
                 else:
                     turn = 0
                 pts_len = pts.shape[0] // 2
+
+                if pts_len != 10:
+                    pbar.update(1)
+                    continue
+
                 positive_pts = pts[:pts_len, :2]
                 negative_pts = pts[pts_len:2 * pts_len, :2]
                 polyline.clear()
@@ -153,6 +157,12 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
                 extra_map[city_name]['has_traffic_control'].append(np.repeat(
                     1 * self.am.lane_has_traffic_control_measure(key, city_name), repeat_t, axis=0).reshape(-1, 1))
                 pbar.update(1)
+            vector_map[city_name] = np.array(vector_map[city_name])
+            extra_map[city_name]['turn_direction'] = np.array(extra_map[city_name]['turn_direction']) # 4891 | 12417 * 18 * 1
+            extra_map[city_name]['OBJECT_TYPE'] = np.array(extra_map[city_name]['OBJECT_TYPE'])
+            extra_map[city_name]['lane_id'] = np.array(extra_map[city_name]['lane_id'])
+            extra_map[city_name]['in_intersection'] = np.array(extra_map[city_name]['in_intersection'])
+            extra_map[city_name]['has_traffic_control'] = np.array(extra_map[city_name]['has_traffic_control'])
         pbar.close()
         print("Generate Vector Map Successfully!")
         return vector_map, extra_map #vector_map:list
@@ -185,7 +195,9 @@ class ArgoverseForecastDataset(torch.utils.data.Dataset):
     def normalize_coordinate(self, array, city_name):
         max_coordinate = self.axis_range[city_name]['max']
         min_coordinate = self.axis_range[city_name]['min']
-        array = (10.*(array.reshape(-1, 2)) / (max_coordinate - min_coordinate)).reshape(-1,4)
+        ori_shape = array.shape
+        array = ((10. * array.reshape(-1,2)) / (max_coordinate - min_coordinate)).reshape(ori_shape)
+
         return array
 
     def save_vector_map(self, vector_map):

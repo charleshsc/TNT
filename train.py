@@ -5,7 +5,6 @@ import time
 from tqdm import tqdm
 import sys
 import os
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import random
 
@@ -16,6 +15,11 @@ from utils.Saver import Saver
 from eval.eval_forecasting import compute_forecasting_metrics
 from utils.utils import copy_state_dict
 from utils.logger import get_logger
+
+city_lanenum = {
+            'PIT' : 4891,
+            'MIA' : 12417
+            }
 
 # Manual Seed
 def setup_seed(seed):
@@ -28,7 +32,6 @@ def setup_seed(seed):
 
 def main():
     args = obtain_env_args()
-    writer = SummaryWriter(args.save)
 
     time_str = time.strftime("%Y%m%d_%H%M%S")
     logger = get_logger(__name__, os.path.join(args.save, time_str + '.log'))
@@ -68,6 +71,7 @@ def main():
         copy_state_dict(model.state_dict(), checkpoint['model_state_dict'])
         if not args.ft:
             copy_state_dict(optimizer.state_dict(),checkpoint['optimizer'])
+            copy_state_dict(lr_policy.state_dict(),checkpoint['lr_policy'])
 
         best_pred = checkpoint['pred_best']
         print("=> loaded checkpoint '{}' (epoch {})"
@@ -80,7 +84,7 @@ def main():
         logger.info("lr: " + str(optimizer.param_groups[0]['lr']))
 
         ## training
-        train(model, args, argo_dst, train_loader, optimizer, writer, logger, epochs)
+        train(model, args, argo_dst, train_loader, optimizer, logger, epochs)
         torch.cuda.empty_cache()
         lr_policy.step()
 
@@ -108,27 +112,31 @@ def main():
                 'epoch': epochs + 1,
                 'model_state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
+                'lr_policy': lr_policy.state_dict(),
                 'pred_best': best_pred
             }
             saver.save_checkpoint(state, filename)
 
     logger.info("Finish Training")
 
-def train(model, args, argo_dst, train_loader, optimizer, writer, logger, epochs):
+def train(model, args, argo_dst, train_loader, optimizer, logger, epochs):
     #### one epoch training ####
     device = torch.device(args.device)
     print_every = args.steps_to_print
 
     # bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
     pbar = tqdm(train_loader,  ncols=80)
-    for i, (traj_batch, map_batch) in enumerate(pbar):
+    for i, (traj_batch, map_batch, city_names) in enumerate(pbar):
         model.train()
         traj_batch = traj_batch.to(device=device, dtype=torch.float)
+        vectormap_batch = []
+        for batch,name in zip(map_batch, city_names):
+            vectormap_batch.append(batch[:city_lanenum[name]].to(device=device, dtype=torch.float))
         candidate_targets = [argo_dst.generate_centerlines_uniform(city, args.N).to(device=device, dtype=torch.float)
-                             for city in map_batch['city_name']]
+                             for city in city_names]
         assert len(candidate_targets) == traj_batch.size()[0]
 
-        loss = model(traj_batch, map_batch, candidate_targets)
+        loss = model(traj_batch, vectormap_batch, city_names, candidate_targets)
         pbar.set_description(
             "[Training Epoch %d/%d: step %d/%d, loss: %.4f]" % (epochs + 1, args.epochs, i + 1, len(train_loader), loss.item()))
 
@@ -138,7 +146,6 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, logger, epochs
 
         if (i + 1) % print_every == 0:
             logger.info('Training Epoch %d/%d: Iteration %d, loss = %.4f' % (epochs + 1, args.epochs, i + 1, loss.item()))
-            writer.add_scalar("training_loss", loss.item(), epochs + 1)
 
         torch.cuda.empty_cache()
 
@@ -156,14 +163,17 @@ def infer(model, args, argo_dst, epochs):
     # bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
     pbar = tqdm(val_loader,  ncols=80)
     final_res, final_gt, final_city_name = dict(),dict(),dict()
-    for i, (traj_batch, map_batch) in enumerate(pbar):
+    for i, (traj_batch, map_batch, city_names) in enumerate(pbar):
         model.eval()
         traj_batch = traj_batch.to(device=device, dtype=torch.float)
+        vectormap_batch = []
+        for batch, name in zip(map_batch, city_names):
+            vectormap_batch.append(batch[:city_lanenum[name]].to(device=device, dtype=torch.float))
         candidate_targets = [argo_dst.generate_centerlines_uniform(city, args.N).to(device=device, dtype=torch.float)
-                             for city in map_batch['city_name']]
+                             for city in city_names]
         assert len(candidate_targets) == traj_batch.size()[0]
 
-        res, gt, city_name= model(traj_batch, map_batch, candidate_targets)
+        res, gt, city_name= model(traj_batch, vectormap_batch, city_names, candidate_targets)
         final_res.update(res)
         final_gt.update(gt)
         final_city_name.update(city_name)

@@ -88,7 +88,10 @@ At inference time, it works as follows:
 
 - [Environment](#Environment)
 - [Usage](#Usage)
-
+- [Results and Visualization](#Results and Visualization)
+- [Citations](#Citations)
+- [Parameters](#Parameters)
+- [References](#References)
 ---
 
 
@@ -155,9 +158,9 @@ After configuring the Environment, you can follow the instruments below to train
    python test.py --gpu 0
    ```
 
-**Note.** The root name of this repository do not to be changed, or it cannot find the save path. Keep this repository name `TNT`
+**Note.** The root name of this repository do not to be changed, or it cannot find the save path. Keep this repository name `TNT`.
 
-And it's better to set the `num_worker`  as 0 since if being set more than 0, it will occur some unexpected bugs. The reason may be that it is complex in the dataloader and due to my little knowledge, I cannot make it to become parallel.
+**Note.** it's better to set the `num_worker`  as 0 since if being set more than 0, it will occur some unexpected bugs. The reason may be that it is complex in the dataloader and due to my little knowledge, I cannot make it to become parallel.
 
 
 
@@ -212,6 +215,6 @@ And it's better to set the `num_worker`  as 0 since if being set more than 0, it
 
 ## References
 
-1. The VectorNet re-implementation refers to this [repo](https://github.com/Liang-ZX/VectorNet) .
+1. The VectorNet re-implementation refers to this [repo](https://github.com/Liang-ZX/VectorNet).
 2. Hang Zhao, Jiyang Gao, Tian Lan, Chen Sun, Benjamin Sapp, Balakrishnan Varadarajan, Yue Shen, Yi Shen, Yuning Chai, Cordelia Schmid, et al. Tnt: Target-driven trajectory prediction. arXiv preprint arXiv:2008.08294, 2020.
 

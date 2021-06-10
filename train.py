@@ -42,10 +42,9 @@ def main():
 
     #### dataset ####
     argo_dst = ArgoverseForecastDataset(args.last_observe, args.train_data_locate)
-    train_loader = DataLoader(dataset=argo_dst, batch_size=args.batch_size, shuffle=True, num_workers=args.num_worker)
+    train_loader = DataLoader(dataset=argo_dst, batch_size=args.batch_size, shuffle=True, num_workers=args.num_worker, pin_memory=True)
 
     val_argo_dst = ArgoverseForecastDataset(args.last_observe, args.val_data_locate)
-    val_loader = DataLoader(dataset=val_argo_dst, batch_size=args.batch_size, num_workers=args.num_worker)
 
     #### model ####
     model = TNT(traj_features=args.traj_features,map_features=args.map_features,args=args)
@@ -77,7 +76,7 @@ def main():
 
     logger.info("Start Training")
     for epochs in range(start_epochs, args.epochs):
-        logger.info("New epochs: "+str(epochs))
+        logger.info("New epochs: "+str(epochs + 1))
         logger.info("lr: " + str(optimizer.param_groups[0]['lr']))
 
         ## training
@@ -87,9 +86,9 @@ def main():
 
         ## validation
         with torch.no_grad():
-            metric_results = infer(model, args, val_argo_dst, val_loader, epochs)
+            metric_results = infer(model, args, val_argo_dst, epochs)
 
-        logger.info('Training Epoch %d/%d: minADE: %.4f, minFDE: %.4f, MR: %.4f' % (epochs, args.epochs, metric_results["minADE"], metric_results["minFDE"], metric_results["MR"]))
+        logger.info('Training Epoch %d/%d: minADE: %.4f, minFDE: %.4f, MR: %.4f' % (epochs + 1, args.epochs, metric_results["minADE"], metric_results["minFDE"], metric_results["MR"]))
 
         cur_save_model = False
         if metric_results["minADE"] < best_pred["minADE"][1]:
@@ -147,9 +146,12 @@ def train(model, args, argo_dst, train_loader, optimizer, writer, logger, epochs
     torch.cuda.empty_cache()
 
 
-def infer(model, args, argo_dst, val_loader, epochs):
+def infer(model, args, argo_dst, epochs):
     #### one epoch val ####
     device = torch.device(args.device)
+
+    val_loader = DataLoader(dataset=argo_dst, batch_size=args.batch_size, num_workers=args.num_worker,
+                            pin_memory=True)
 
     # bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
     pbar = tqdm(val_loader,  ncols=80)
@@ -172,8 +174,8 @@ def infer(model, args, argo_dst, val_loader, epochs):
 
     pbar.close()
 
-
-    metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, model.K, model.T, model.min_distance)
+    T = args.total_step - args.last_observe
+    metric_results = compute_forecasting_metrics(final_res, final_gt, final_city_name, args.K, T, args.miss_threshold)
     return metric_results
 
 if __name__ == '__main__':

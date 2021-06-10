@@ -57,6 +57,7 @@ def obtain_env_args():
     parser.add_argument('--resume',type=str,default=None,help="the pretrained model to reload")
     parser.add_argument('--ft',type=bool,default=True,help="fine-tuning in optimizer")
     parser.add_argument('--root_name',type=str,default=root_name,help="save the scripts helping")
+    parser.add_argument('--miss_threshold', type=float,default=2.0, help="The miss threshold in the eval stage for the MR")
 
     args = parser.parse_args()
     return args
